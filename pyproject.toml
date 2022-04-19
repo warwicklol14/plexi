@@ -1,0 +1,17 @@
+[tool.poetry]
+name = "plexmedia-downloader-master"
+version = "0.1.0"
+description = ""
+authors = ["Your Name <you@example.com>"]
+
+[tool.poetry.dependencies]
+python = "^3.8"
+requests = "2.24.0"
+tqdm = "4.51.0"
+urllib3 = "1.25.10"
+
+[tool.poetry.dev-dependencies]
+
+[build-system]
+requires = ["poetry-core>=1.0.0"]
+build-backend = "poetry.core.masonry.api"
