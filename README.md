@@ -47,5 +47,5 @@ optional arguments:
 ## Example
 
 ```
-python main.py -u codedninja -p 3U7qYhaBAk8yfa 'https://app.plex.tv/desktop#!/server/0893cadc04a6f52efa052691d6a07c5b54890ca1/details?key=%2Flibrary%2Fmetadata%2F208649&context=source%3Ahub.tv.recentlyaired'
+python src/main.py -u username -p password 'https://app.plex.tv/desktop#!/server/0893cadc04a6f52efa052691d6a07c5b54890ca1/details?key=%2Flibrary%2Fmetadata%2F208649&context=source%3Ahub.tv.recentlyaired'
 ```
