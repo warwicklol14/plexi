@@ -1,4 +1,3 @@
-#!/usr/bin/env python3
 import requests
 from urllib.parse import urlparse, unquote, parse_qs
 from tqdm.auto import tqdm
@@ -6,6 +5,48 @@ import os
 import argparse
 import base64
 import json
+
+import urllib
+from rich import print
+
+from rich.traceback import install
+install(show_locals=True)
+
+from rich.progress import (
+    BarColumn,
+    DownloadColumn,
+    Progress,
+    TaskID,
+    TextColumn,
+    TimeRemainingColumn,
+    TransferSpeedColumn,
+)
+
+progress = Progress(
+    TextColumn("[bold blue]{task.fields[filename]}", justify="right"),
+    BarColumn(bar_width=None),
+    "[progress.percentage]{task.percentage:>3.1f}%",
+    "•",
+    DownloadColumn(),
+    "•",
+    TransferSpeedColumn(),
+    "•",
+    TimeRemainingColumn(),
+    transient=True
+)
+
+def download_url(task_id: TaskID, url: str, headers, path: str) -> None:
+    progress.console.log(f"Requesting {url}")
+    response = requests.get(url, stream=True, headers=headers)
+    # This will break if the response doesn't contain content length
+    progress.update(task_id, total=int(response.headers.get('content-length', 0)))
+    with open(path, "wb") as dest_file:
+        progress.start_task(task_id)
+        for chunk in response.iter_content(chunk_size=4096):
+            dest_file.write(chunk)
+            progress.update(task_id, advance=len(chunk))
+    progress.console.log(f"Downloaded {path}")
+    progress.update(task_id, visible=False)
 
 
 class PlexDownloader:
@@ -198,45 +239,33 @@ class PlexDownloader:
 
         return False
 
-    def download(self):
+    def old_downloader(self):
         user = self.login()
-
         print("Logged in as: %s" % user['username'])
-
         servers = self.get_servers()
         server_count = len(servers)
         print("Found %s servers" % server_count)
-
         self.server = self.servers[self.server_hash]
-
         print("Getting urls of content to download.")
         contents = self._get_metadata()
-
         if not contents:
             print("Couldn't get metadata")
             return
-
         print("Found %s media content to download" % len(contents))
-
+        print(contents)
         headers = {
             'X-Plex-Token': self.server["access_token"]
         }
-
         for content in contents:
             if not os.path.exists(content['folder']):
                 print("Directories don't exists, creating folders")
                 os.makedirs(content['folder'])
-
             file_name = os.path.join(
                 content['folder'], content['filename'].replace("/", "-"))
-
-            response = requests.get(
-                content['url'], stream=True, headers=headers)
-
+            response = requests.get(content['url'], stream=True, headers=headers)
             if response.status_code == 400:
                 print("Error getting %s" % content['title'])
                 continue
-
             with open(file_name, "wb") as fout:
                 with tqdm(
                     unit='B', unit_scale=True, unit_divisor=1024, miniters=1,
@@ -247,6 +276,33 @@ class PlexDownloader:
                         fout.write(chunk)
                         pbar.update(len(chunk))
         return
+
+
+    def content_download(self):
+        user = self.login()
+        print("Logged in as: %s" % user['username'])
+        servers = self.get_servers()
+        server_count = len(servers)
+        print("Found %s servers" % server_count)
+        self.server = self.servers[self.server_hash]
+        print("Getting urls of content to download.")
+        contents = self._get_metadata()
+        if not contents:
+            print("Couldn't get metadata")
+            return
+        print("Found %s media content to download" % len(contents))
+        headers = {
+            'X-Plex-Token': self.server["access_token"]
+        }
+        with progress:
+            for content in contents:
+                dir_path = os.path.join(DOWNLOADS_FOLDER, content['folder'])
+                make_folder(dir_path)
+                filename = content['filename'].replace("/","-")
+                dest_path = os.path.join(dir_path, filename)
+                task_id = progress.add_task("download", filename=filename, start=False)
+                url = content['url']
+                download_url(task_id, url, headers, dest_path)
 
     def parse_url(self, url):
         if not url:
@@ -292,12 +348,21 @@ class PlexDownloader:
             quit(1)
 
         self.parse_url(args.url)
-        self.download()
+        self.content_download()
 
     def __init__(self):
         return
 
+def make_folder(folder_path):
+    if not os.path.exists(folder_path):
+        os.makedirs(folder_path)
+
+DOWNLOADS_FOLDER = "Downloads"
+
+def make_download_folder():
+    make_folder(DOWNLOADS_FOLDER)
 
 if __name__ == "__main__":
+    make_download_folder()
     plex = PlexDownloader()
     plex.command_line()
